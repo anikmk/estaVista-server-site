@@ -6,7 +6,9 @@ const cookieParser = require('cookie-parser')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb')
 const jwt = require('jsonwebtoken')
 const morgan = require('morgan')
+// const { default: Stripe } = require('stripe')
 const port = process.env.PORT || 5000
+const stripe = require("stripe")(process.env.PAYMENT_SECRET_KEY)
 
 // middleware
 const corsOptions = {
@@ -45,6 +47,7 @@ async function run() {
   try {
     const usersCollection = client.db('estaVista').collection('users')
     const roomsCollection = client.db('estaVista').collection('rooms')
+    const paymentCollection = client.db('estaVista').collection('payment')
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -95,6 +98,12 @@ async function run() {
       )
       res.send(result)
     })
+    // get role api
+    app.get('/user/:email',async (req,res)=>{
+      const email = req.params.email;
+      const result = await usersCollection.findOne({email});
+      res.send(result)
+    })
 
     // get all rooms api
     app.get('/rooms', async(req,res)=>{
@@ -104,7 +113,6 @@ async function run() {
     // get single room api
     app.get('/room/:id',async(req,res)=>{
       const id = req.params.id;
-      console.log('id',id)
       const result = await roomsCollection.findOne({_id: new ObjectId(id)})
       res.send(result);
     })
@@ -122,6 +130,51 @@ async function run() {
       const result = await roomsCollection.insertOne(roomData);
       res.send(result)
     })
+
+    // create payment Intent
+    app.post('/create-payment-intent', verifyToken, async (req, res) => {
+      try {
+        const { price } = req.body;
+        const amount = parseInt(price * 100);
+        console.log('Amount:', amount);
+    
+        if (!price || amount < 1) {
+          throw new Error('Invalid price');
+        }
+    
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amount,
+          currency: 'usd',
+          payment_method_types: ['card']
+        });
+    
+        res.send({ clientSecret: paymentIntent.client_secret });
+      } catch (error) {
+        console.error("Error creating payment intent:", error);
+        res.status(500).send({ error: error.message });
+      }
+    });
+    // save payment info
+    app.post('/saveBooking',async(req,res)=>{
+      const paymentData = req.body;
+      const result = await paymentCollection.insertOne(paymentData)
+      res.send(result)
+    })
+    // update room status api
+    app.patch('/rooms/:id',async(req,res)=>{
+      const id = req.params.id;
+      const status = req.body.status
+      const query = {_id: new ObjectId(id)}
+      const options = {upsert:true}
+      const updateDoc = {
+        $set:{
+          booked:status
+        }
+      }
+      const result = await roomsCollection.updateOne(query,updateDoc,options)
+      res.send(result)
+    })
+
     // Send a ping to confirm a successful connection
     await client.db('admin').command({ ping: 1 })
     console.log(
