@@ -105,6 +105,27 @@ async function run() {
       res.send(result)
     })
 
+    // get all users
+    app.get('/users',async(req,res)=>{
+      const result = await usersCollection.find().toArray()
+      res.send(result)
+    })
+    // update user role status:
+    app.put('/users/update/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const user = req.body;
+      const query = {email:email}
+      const options = { upsert: true }
+      const updateDoc = ({
+        $set:{
+          ...user,
+          timestamp:new Date()
+        }
+      })
+      const result = await usersCollection.updateOne(query,updateDoc,options)
+      res.send(result)
+    })
+
     // get all rooms api
     app.get('/rooms', async(req,res)=>{
       const result = await roomsCollection.find().toArray();
@@ -172,6 +193,20 @@ async function run() {
         }
       }
       const result = await roomsCollection.updateOne(query,updateDoc,options)
+      res.send(result)
+    })
+    // get data for guest 
+    app.get('/bookings',verifyToken,async(req,res)=>{
+      const email = req.query.email;
+      const query = {"guest.email":email}
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result)
+    })
+    // get data for host
+    app.get('/bookings/host',verifyToken,async(req,res)=> {
+      const email = req.query.email
+      const query = {host:email}
+      const result = await paymentCollection.find(query).toArray()
       res.send(result)
     })
 
