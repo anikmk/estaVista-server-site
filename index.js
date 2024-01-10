@@ -126,6 +126,22 @@ async function run() {
       res.send(result)
     })
 
+    // guest request for host to admin
+    app.patch('/request/for/host/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const user = req.body;
+      console.log(user)
+      const query = {email:email}
+      const options = {upsert:true}
+      const updateDoc = ({
+        $set:{
+          status:user.status
+        }
+      })
+      const result = await usersCollection.updateOne(query,updateDoc,options)
+      res.send(result)
+    })
+
     // get all rooms api
     app.get('/rooms', async(req,res)=>{
       const result = await roomsCollection.find().toArray();
